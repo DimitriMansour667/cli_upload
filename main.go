@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -88,9 +92,8 @@ func main() {
             {
                 Name:  "upload",
                 Usage: "Upload a file to the PocketBase Instance",
-                Action: func(*cli.Context) error {
-                    fmt.Println(`lol
-                    `)
+                Action: func(ctx *cli.Context) error {
+                    upload(ctx.Args().First())
                     return nil
                 },
             },
@@ -170,14 +173,89 @@ func checkInstance() bool{
 }
 
 
-func upload() string{
-    return ""
-}
+func upload(filePath string) error {
+    fmt.Println("Uploading file:", filePath)
+    url, err := loadConfig()
+    if err != nil {
+        return fmt.Errorf("failed to load config: %w", err)
+    }
 
-func list() string{
-    return ""
-}
+    body := &bytes.Buffer{}
+    writer := multipart.NewWriter(body)
 
-func delete(){
+    file, err := os.Open(filePath)
+    if err != nil {
+        return fmt.Errorf("failed to open file: %w", err)
+    }
+    defer file.Close()
 
+    part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+    if err != nil {
+        return fmt.Errorf("failed to create form file: %w", err)
+    }
+
+    _, err = io.Copy(part, file)
+    if err != nil {
+        return fmt.Errorf("failed to copy file content: %w", err)
+    }
+
+    _ = writer.WriteField("name", filepath.Base(filePath))
+
+    err = writer.Close()
+    if err != nil {
+        return fmt.Errorf("failed to close writer: %w", err)
+    }
+
+    req, err := http.NewRequest("POST", url, body)
+    if err != nil {
+        return fmt.Errorf("failed to create request: %w", err)
+    }
+
+    req.Header.Set("Content-Type", writer.FormDataContentType())
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return fmt.Errorf("failed to send request: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+        respBody, _ := io.ReadAll(resp.Body)
+        return fmt.Errorf("upload failed with status %d: %s", resp.StatusCode, string(respBody))
+    }
+
+    fmt.Printf("Successfully uploaded %s\n", filepath.Base(filePath))
+    respBody, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return fmt.Errorf("failed to read response body: %w", err)
+    }
+    var respBodyMap map[string]interface{}
+    err = json.Unmarshal(respBody, &respBodyMap)
+    if err != nil {
+        return fmt.Errorf("failed to unmarshal response body: %w", err)
+    }
+
+    // http://127.0.0.1:8090/api/files/COLLECTION_ID_OR_NAME/RECORD_ID/FILENAME
+    splitUrl := strings.Split(url, "/")
+    link := splitUrl[0] + "//" + splitUrl[2] + "/api/files/" + respBodyMap["collectionName"].(string) + "/" + respBodyMap["id"].(string) + "/" + respBodyMap["file"].(string)
+    // Update link in db
+    // /api/collections/files/records/:id
+    updateUrl := url + "/" + respBodyMap["id"].(string)
+    updateReq, err := http.NewRequest("PATCH", updateUrl, bytes.NewBuffer([]byte(`{"link": "` + link + `"}`)))
+    if err != nil {
+        return fmt.Errorf("failed to create update request to update link in db: %w", err)
+    }
+    updateReq.Header.Set("Content-Type", "application/json")
+    updateClient := &http.Client{}
+    updateResp, err := updateClient.Do(updateReq)
+    if err != nil {
+        return fmt.Errorf("failed to send update request to update link in db: %w", err)
+    }
+    defer updateResp.Body.Close()
+    if updateResp.StatusCode != http.StatusOK && updateResp.StatusCode != http.StatusCreated {
+        return fmt.Errorf("update failed with status to update link in db: %d", updateResp.StatusCode)
+    }
+    fmt.Println("Link:", link)
+    return nil
 }
