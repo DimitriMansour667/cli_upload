@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -46,6 +48,7 @@ func main() {
                 Action: func(ctx *cli.Context) error {
                     if ctx.String("set") != "" {
                         saveConfig(ctx.String("set"))
+                        fmt.Println("PocketBase Instance URL set to:", ctx.String("set"))
                     }
                     if ctx.Bool("get") {
                         url, err := loadConfig()
@@ -57,6 +60,20 @@ func main() {
                     }
                     if ctx.Bool("path") {
                         fmt.Println(getConfigPath())
+                    }
+                    return nil
+                },
+            },
+            {
+                Name:  "check",
+                Usage: "Check if the PocketBase Instance is running",
+                Action: func(*cli.Context) error {
+                    url, err := loadConfig()
+                    if err != nil {
+                        log.Fatal("Error loading config:", err)
+                    }
+                    if checkInstance() {
+                        fmt.Println("PocketBase Instance is running at:", url)
                     }
                     return nil
                 },
@@ -96,6 +113,7 @@ func main() {
     }
 }
 
+// Config Functions
 
 func getConfigPath() string {
     homeDir, err := os.UserHomeDir()
@@ -117,7 +135,31 @@ func loadConfig() (string, error) {
     return strings.TrimSpace(string(data)), nil
 }
 
-func config(address string){
+// PocketBase Functions
+
+func checkInstance() bool{
+    url, err := loadConfig()
+    if err != nil {
+        log.Fatal("Error loading config:", err)
+        return false
+    }
+    if url == "" {
+        log.Fatal("No PocketBase Instance URL found")
+        return false
+    }
+
+
+    resp, err := http.Get(url)
+    if err != nil {
+        log.Fatal("Error checking PocketBase Instance:", err)
+        return false
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode == 200 {
+        return true
+    }
+    log.Fatal("PocketBase Instance is not running at:", url)
+    return false
 }
 
 func checkConfig() bool{
