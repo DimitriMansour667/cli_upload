@@ -20,7 +20,7 @@ func main() {
         Authors: []*cli.Author{
             {
                 Name:  "Dimitri Mansour",
-                Email: "dimitri@dimitrimansour.com",
+                Email: "dimi.mansour03@gmail.com",
             },
         },
         EnableBashCompletion: true,
@@ -49,6 +49,13 @@ func main() {
                     if ctx.String("set") != "" {
                         saveConfig(ctx.String("set"))
                         fmt.Println("PocketBase Instance URL set to:", ctx.String("set"))
+                        fmt.Println(`
+                        Note:
+                        - Make sure that you provided the link to PocketBase valid record
+                        - Example: https://your-pocketbase-instance.com/api/collections/{record-name}/records
+                        - Make sure that your record is valid and has the fields "name", "file", "link", "created"
+                        - Use "cmdim check" to check if the PocketBase Instance is running
+                        `)
                     }
                     if ctx.Bool("get") {
                         url, err := loadConfig()
@@ -162,9 +169,6 @@ func checkInstance() bool{
     return false
 }
 
-func checkConfig() bool{
-    return false
-}
 
 func upload() string{
     return ""
