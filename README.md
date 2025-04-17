@@ -17,6 +17,8 @@ go install github.com/dimi-mansour/cmdim@latest
 
 ### Config
 Set the url of the PocketBase Instance
+Make sure that you provided the link to PocketBase valid record
+Example: https://your-pocketbase-instance.com/api/collections/{record-name}/records
 ```bash
 cmdim config --set <url>
 ```
