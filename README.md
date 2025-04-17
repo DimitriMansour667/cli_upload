@@ -1,7 +1,4 @@
 # cmdim
-
-## Description
-
 cmdim is a CLI tool that allows you to manage your PocketBase files.
 
 ## Installation
