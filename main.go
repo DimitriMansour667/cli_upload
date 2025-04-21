@@ -91,7 +91,7 @@ func main() {
             },
             {
                 Name:  "files",
-                Usage: "Upload a file to the PocketBase Instance",
+                Usage: "Manage files in the PocketBase Instance",
                 Flags: []cli.Flag{
                     &cli.StringFlag{
                         Name:  "upload",
