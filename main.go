@@ -90,28 +90,36 @@ func main() {
                 },
             },
             {
-                Name:  "upload",
+                Name:  "files",
                 Usage: "Upload a file to the PocketBase Instance",
+                Flags: []cli.Flag{
+                    &cli.StringFlag{
+                        Name:  "upload",
+                        Aliases: []string{"u"},
+                        Usage: "Upload a file to the PocketBase Instance",
+                    },
+                    &cli.BoolFlag{
+                        Name:  "list",
+                        Aliases: []string{"l"},
+                        Usage: "List all files in the PocketBase Instance",
+                    },
+                    &cli.StringFlag{
+                        Name:  "delete",
+                        Aliases: []string{"d"},
+                        Usage: "Delete a file from the PocketBase Instance",
+                    },
+
+                },
                 Action: func(ctx *cli.Context) error {
-                    upload(ctx.Args().First())
-                    return nil
-                },
-            },
-            {
-                Name:  "list",
-                Usage: "List all files in the PocketBase Instance",
-                Action: func(*cli.Context) error {
-                    fmt.Println(`lol
-                    `)
-                    return nil
-                },
-            },
-            {
-                Name:  "delete",
-                Usage: "Delete a file from the PocketBase Instance",
-                Action: func(*cli.Context) error {
-                    fmt.Println(`lol
-                    `)
+                    if ctx.String("upload") != "" {
+                        upload(ctx.String("upload"))
+                    }
+                    if ctx.Bool("list") {
+                        listFiles()
+                    }
+                    if ctx.String("delete") != "" {
+                        deleteFile(ctx.String("delete"))
+                    }
                     return nil
                 },
             },
@@ -257,5 +265,85 @@ func upload(filePath string) error {
         return fmt.Errorf("update failed with status to update link in db: %d", updateResp.StatusCode)
     }
     fmt.Println("Link:", link)
+    return nil
+}
+
+func listFiles() error {
+    fmt.Println("Listing files...")
+    url, err := loadConfig()
+    if err != nil {
+        return fmt.Errorf("failed to load config: %w", err)
+    }
+    
+    resp, err := http.Get(url)
+    if err != nil {
+        return fmt.Errorf("failed to get files: %w", err)
+    }
+    defer resp.Body.Close()
+    
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return fmt.Errorf("failed to read response body: %w", err)
+    }
+
+    var response struct {
+        Items []struct {
+            CollectionId   string `json:"collectionId"`
+            CollectionName string `json:"collectionName"`
+            Created       string `json:"created"`
+            File         string `json:"file"`
+            Id           string `json:"id"`
+            Link         string `json:"link"`
+        } `json:"items"`
+        Page       int `json:"page"`
+        PerPage    int `json:"perPage"`
+        TotalItems int `json:"totalItems"`
+        TotalPages int `json:"totalPages"`
+    }
+
+    err = json.Unmarshal(body, &response)
+    if err != nil {
+        return fmt.Errorf("failed to unmarshal response body: %w", err)
+    }
+
+    if len(response.Items) == 0 {
+        fmt.Println("No files found")
+        return nil
+    }
+
+    fmt.Println("\nFiles:")
+    fmt.Println("----------------------------------------")
+    for _, file := range response.Items {
+        fmt.Printf("ID: %s\n", file.Id)
+        fmt.Printf("Name: %s\n", file.File)
+        fmt.Printf("Link: %s\n", file.Link)
+        fmt.Printf("Created: %s\n", file.Created)
+        fmt.Println("----------------------------------------")
+    }
+
+    return nil
+}
+
+func deleteFile(fileId string) error {
+    // /api/collections/files/records/:id
+    url, err := loadConfig()
+    if err != nil {
+        return fmt.Errorf("failed to load config: %w", err)
+    }
+    deleteUrl := url + "/" + fileId
+    deleteReq, err := http.NewRequest("DELETE", deleteUrl, nil)
+    if err != nil {
+        return fmt.Errorf("failed to create delete request: %w", err)
+    }
+    deleteClient := &http.Client{}
+    deleteResp, err := deleteClient.Do(deleteReq)
+    if err != nil {
+        return fmt.Errorf("failed to send delete request: %w", err)
+    }
+    defer deleteResp.Body.Close()
+    if deleteResp.StatusCode != http.StatusOK && deleteResp.StatusCode != http.StatusCreated {
+        return fmt.Errorf("delete failed with status: %d", deleteResp.StatusCode)
+    }
+    fmt.Println("File deleted successfully")
     return nil
 }
